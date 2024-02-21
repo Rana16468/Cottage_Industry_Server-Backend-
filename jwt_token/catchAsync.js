@@ -5,8 +5,8 @@ const catchAsync = (fn) => {
 };
 
 const USER_ROLE = {
-  Buyer: "buyer",
-  Seller: "seller",
+  Buyer: process.env.buyer_account,
+  Seller: process.env.seler_account,
 };
 
 module.exports = { catchAsync, USER_ROLE };

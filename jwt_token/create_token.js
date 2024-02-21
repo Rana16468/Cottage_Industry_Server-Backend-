@@ -24,7 +24,11 @@ const auth = (...requireRoles) => {
     try {
       decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     } catch (error) {
-      throw new AppError(httpStatus.UNAUTHORIZED, "Unauthorized", "");
+      throw new Error({
+        success: false,
+        status: httpStatus.UNAUTHORIZED,
+        errorMessage: "Unauthorized USER",
+      });
     }
 
     // after fontend Authenticatione this part started
