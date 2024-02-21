@@ -10,11 +10,11 @@ const create_token = (data) => {
 };
 
 const auth = (...requireRoles) => {
-  console.log(requireRoles);
+  //console.log(requireRoles);
   return catchAsync(async (req, res, next) => {
     const token = req.headers.authorization;
     if (!token) {
-      throw new Error({
+      return res.status(httpStatus.UNAUTHORIZED).send({
         success: false,
         status: httpStatus.UNAUTHORIZED,
         errorMessage: "Unauthorized Token",
@@ -24,7 +24,7 @@ const auth = (...requireRoles) => {
     try {
       decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     } catch (error) {
-      throw new Error({
+      res.status(httpStatus.UNAUTHORIZED).send({
         success: false,
         status: httpStatus.UNAUTHORIZED,
         errorMessage: "Unauthorized USER",
