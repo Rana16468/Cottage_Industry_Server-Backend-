@@ -10,6 +10,8 @@ const {
 require("dotenv").config();
 
 const httpStatus = require("http-status");
+const { create_token, auth } = require("./jwt_token/create_token");
+const { USER_ROLE } = require("./jwt_token/catchAsync");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -99,46 +101,64 @@ async function run() {
         });
     });
 
-    app.get("/api/v1/all_product", async (req, res) => {
-      const query = {};
+    app.get(
+      "/api/v1/all_product",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const query = {};
 
-      get_all_data(productCategorie, query)
-        .then((result) => {
-          return res.send({
-            success: true,
-            message: "Successfully Get All Product",
-            status: httpStatus.OK,
-            data: result,
+        get_all_data(productCategorie, query)
+          .then((result) => {
+            return res.send({
+              success: true,
+              message: "Successfully Get All Product",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
           });
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        });
-    });
+      }
+    );
 
-    app.get("/api/v1/specific_user_product", async (req, res) => {
-      const query = req.query;
+    app.get(
+      "/api/v1/specific_user_product",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const query = req.query;
 
-      specific_data(productCategorie, query)
-        .then((result) => {
-          return res.send({
-            success: true,
-            message: "Successfully Get All Product",
-            status: httpStatus.OK,
-            data: result,
+        specific_data(productCategorie, query)
+          .then((result) => {
+            return res.send({
+              success: true,
+              message: "Successfully Get All Product",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
           });
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        });
+      }
+    );
+
+    app.post("/api/v1/create_token", async (req, res) => {
+      const data = req.body;
+      const token = create_token(data);
+      res.status(httpStatus.OK).send({
+        success: true,
+        message: "Successfully create Token",
+        data: token,
+      });
     });
 
     app.listen(port, () => {
