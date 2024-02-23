@@ -102,7 +102,6 @@ async function run() {
       auth(USER_ROLE.Buyer, USER_ROLE.Seller),
       async (req, res) => {
         const query = {};
-
         get_all_data(productCategorie, query)
           .then((result) => {
             return res.send({
