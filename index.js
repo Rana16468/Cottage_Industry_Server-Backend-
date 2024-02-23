@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { ObjectId } = require("mongodb");
+const bcrypt = require("bcrypt");
 const {
   post_data,
   update_data,
@@ -12,6 +13,11 @@ require("dotenv").config();
 const httpStatus = require("http-status");
 const { create_token, auth } = require("./jwt_token/create_token");
 const { USER_ROLE } = require("./jwt_token/catchAsync");
+const {
+  connectedDatabase,
+  productCategorie,
+  userCollection,
+} = require("./DB/mongoDB");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -20,13 +26,10 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection URL
-const uri = process.env.MONGODB_URI;
 
-const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverApi: ServerApiVersion.v1,
-});
+connectedDatabase().catch((error) =>
+  console.dir(error?.message + "mongodb error")
+);
 
 //https://www.slideshare.net/MdBorhan4/types-of-cottage-industries-in-bangladesh
 //
@@ -42,13 +45,6 @@ async function run() {
   });
 
   try {
-    // Connect to MongoDB
-    await client.connect();
-    console.log("Connected to MongoDB");
-
-    const db = client.db("assignment");
-    const productCategorie = db.collection("categorie");
-
     // ==============================================================
     // WRITE YOUR CODE HERE
     // ==============================================================
@@ -159,6 +155,48 @@ async function run() {
         message: "Successfully create Token",
         data: token,
       });
+    });
+
+    // user Information
+
+    app.post("/api/v1/user_information", async (req, res) => {
+      Reflect.deleteProperty(req.body, process.env.TERM);
+      Reflect.deleteProperty(req.body, process.env.CONFIRM_PASSWORD);
+      req.body.password = await bcrypt.hash(
+        req.body.password,
+        Number(process.env.BCRYPT_SALT_ROUNDS)
+      );
+      const data = { isAdmin: false, ...req.body };
+
+      // checked user  validation
+      const isUserExist = await userCollection
+        .findOne({ email: req.body.email })
+        .then((data) => data?._id);
+
+      if (isUserExist) {
+        return res.status(httpStatus.ALREADY_REPORTED).send({
+          success: false,
+          message: "User Already Exist",
+          status: httpStatus.ALREADY_REPORTED,
+        });
+      }
+
+      post_data(userCollection, data)
+        .then((result) => {
+          return res.status(httpStatus.CREATED).send({
+            success: true,
+            status: httpStatus.CREATED,
+            message: "Successfully Recorded Information",
+            data: result,
+          });
+        })
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        });
     });
 
     app.listen(port, () => {
