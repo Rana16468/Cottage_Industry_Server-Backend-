@@ -11,9 +11,9 @@ const create_token = (data) => {
 };
 
 const auth = (...requireRoles) => {
-  //console.log(requireRoles);
   return catchAsync(async (req, res, next) => {
     const token = req.headers.authorization;
+
     if (!token) {
       return res.status(httpStatus.UNAUTHORIZED).send({
         success: false,
@@ -25,7 +25,7 @@ const auth = (...requireRoles) => {
     try {
       decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     } catch (error) {
-      res.status(httpStatus.UNAUTHORIZED).send({
+      return res.status(httpStatus.UNAUTHORIZED).send({
         success: false,
         status: httpStatus.UNAUTHORIZED,
         errorMessage: "Unauthorized USER",
@@ -41,7 +41,7 @@ const auth = (...requireRoles) => {
       return res.status(httpStatus.NOT_FOUND).send({
         success: false,
         status: httpStatus.NOT_FOUND,
-        errorMessage: "User data not exist in Database",
+        errorMessage: "User data not exist in the  Database",
       });
     }
     if (requireRoles && !requireRoles.includes(role)) {

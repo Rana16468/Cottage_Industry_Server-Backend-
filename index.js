@@ -48,6 +48,18 @@ async function run() {
     // ==============================================================
     // WRITE YOUR CODE HERE
     // ==============================================================
+
+    app.post("/api/v1/create_token", async (req, res) => {
+      const data = req.body;
+      const token = create_token(data);
+      console.log(token);
+      res.status(httpStatus.OK).send({
+        success: true,
+        message: "Successfully create Token",
+        data: token,
+      });
+    });
+
     app.post("/api/v1/product", async (req, res) => {
       const data = req.body;
 
@@ -99,7 +111,7 @@ async function run() {
 
     app.get(
       "/api/v1/all_product",
-      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      auth(USER_ROLE.Seller, USER_ROLE.Buyer),
       async (req, res) => {
         const query = {};
         get_all_data(productCategorie, query)
@@ -145,16 +157,6 @@ async function run() {
           });
       }
     );
-
-    app.post("/api/v1/create_token", async (req, res) => {
-      const data = req.body;
-      const token = create_token(data);
-      res.status(httpStatus.OK).send({
-        success: true,
-        message: "Successfully create Token",
-        data: token,
-      });
-    });
 
     // user Information
 
