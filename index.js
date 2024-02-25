@@ -7,6 +7,7 @@ const {
   update_data,
   get_all_data,
   specific_data,
+  aggregate_data,
 } = require("./reuseable_method/resuable_functions");
 require("dotenv").config();
 
@@ -52,7 +53,6 @@ async function run() {
     app.post("/api/v1/create_token", async (req, res) => {
       const data = req.body;
       const token = create_token(data);
-      console.log(token);
       res.status(httpStatus.OK).send({
         success: true,
         message: "Successfully create Token",
@@ -113,13 +113,30 @@ async function run() {
       "/api/v1/all_product",
       auth(USER_ROLE.Seller, USER_ROLE.Buyer),
       async (req, res) => {
-        const query = {};
-        get_all_data(productCategorie, query)
+        const query = [
+          {
+            $unwind: "$productList", // Deconstruct/breckdown the productList array
+          },
+          {
+            $group: {
+              _id: "$categorie_name", // Group documents by categorie_name
+              count: { $sum: 1 }, // Count the number of products in each category
+              products: { $push: "$productList" }, // Accumulate product details for each category
+            },
+          },
+          {
+            $sort: {
+              count: -1,
+            },
+          },
+        ];
+
+        aggregate_data(query, productCategorie)
           .then((result) => {
             return res.send({
               success: true,
-              message: "Successfully Get All Product",
               status: httpStatus.OK,
+              message: "Successfully Rectrive all Data",
               data: result,
             });
           })

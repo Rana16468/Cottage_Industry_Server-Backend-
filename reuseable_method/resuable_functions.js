@@ -28,10 +28,15 @@ const delete_data = async (id, databaseCollection) => {
   return result;
 };
 
+const aggregate_data = async (data, databaseCollection) => {
+  return await databaseCollection.aggregate(data).toArray();
+};
+
 module.exports = {
   get_all_data,
   post_data,
   specific_data,
   update_data,
   delete_data,
+  aggregate_data,
 };
