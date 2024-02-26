@@ -14,9 +14,11 @@ const connectedDatabase = async () => {
 const db = client.db("assignment");
 const productCategorie = db.collection("categorie");
 const userCollection = db.collection("user");
+const subCategorieCollection = db.collection("subcategorie");
 
 module.exports = {
   productCategorie,
   connectedDatabase,
   userCollection,
+  subCategorieCollection,
 };

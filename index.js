@@ -18,6 +18,7 @@ const {
   connectedDatabase,
   productCategorie,
   userCollection,
+  subCategorieCollection,
 } = require("./DB/mongoDB");
 const app = express();
 const port = process.env.PORT || 5000;
@@ -120,6 +121,7 @@ async function run() {
           {
             $group: {
               _id: "$categorie_name", // Group documents by categorie_name
+              categorieId: { $first: "$_id" },
               count: { $sum: 1 }, // Count the number of products in each category
               products: { $push: "$productList" }, // Accumulate product details for each category
             },
@@ -177,44 +179,96 @@ async function run() {
 
     // user Information
 
-    app.post("/api/v1/user_information", async (req, res) => {
-      Reflect.deleteProperty(req.body, process.env.TERM);
-      Reflect.deleteProperty(req.body, process.env.CONFIRM_PASSWORD);
-      req.body.password = await bcrypt.hash(
-        req.body.password,
-        Number(process.env.BCRYPT_SALT_ROUNDS)
-      );
-      const data = { isAdmin: false, ...req.body };
+    app.post(
+      "/api/v1/user_information",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        Reflect.deleteProperty(req.body, process.env.TERM);
+        Reflect.deleteProperty(req.body, process.env.CONFIRM_PASSWORD);
+        req.body.password = await bcrypt.hash(
+          req.body.password,
+          Number(process.env.BCRYPT_SALT_ROUNDS)
+        );
+        const data = { isAdmin: false, ...req.body };
 
-      // checked user  validation
-      const isUserExist = await userCollection
-        .findOne({ email: req.body.email })
-        .then((data) => data?._id);
+        // checked user  validation
+        const isUserExist = await userCollection
+          .findOne({ email: req.body.email })
+          .then((data) => data?._id);
 
-      if (isUserExist) {
-        return res.status(httpStatus.ALREADY_REPORTED).send({
-          success: false,
-          message: "User Already Exist",
-          status: httpStatus.ALREADY_REPORTED,
-        });
-      }
-
-      post_data(userCollection, data)
-        .then((result) => {
-          return res.status(httpStatus.CREATED).send({
-            success: true,
-            status: httpStatus.CREATED,
-            message: "Successfully Recorded Information",
-            data: result,
-          });
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+        if (isUserExist) {
+          return res.status(httpStatus.ALREADY_REPORTED).send({
             success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+            message: "User Already Exist",
+            status: httpStatus.ALREADY_REPORTED,
           });
-        });
+        }
+
+        post_data(userCollection, data)
+          .then((result) => {
+            return res.status(httpStatus.CREATED).send({
+              success: true,
+              status: httpStatus.CREATED,
+              message: "Successfully Recorded Information",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // sub categorical product
+    //https://www.google.com/search?q=pottery+all+types&sca_esv=1afa8f061832541a&sxsrf=ACQVn0-74u_wLsdpLxVYNS_upLfDYGJk9w%3A1708954126397&ei=DpLcZd_mF8HgseMP05ujiAE&ved=0ahUKEwjfpZCdjsmEAxVBcGwGHdPNCBEQ4dUDCBA&uact=5&oq=pottery+all+types&gs_lp=Egxnd3Mtd2l6LXNlcnAiEXBvdHRlcnkgYWxsIHR5cGVzMgoQABhHGNYEGLADMgoQABhHGNYEGLADMgoQABhHGNYEGLADMgoQABhHGNYEGLADMgoQABhHGNYEGLADMgoQABhHGNYEGLADMgoQABhHGNYEGLADMgoQABhHGNYEGLADSLwPUMkEWKsIcAF4AZABAJgBmwGgAZECqgEDMC4yuAEDyAEA-AEBmAIDoAKfAsICBxAAGIAEGA3CAggQABgIGB4YDcICChAAGAgYHhgNGA_CAgsQABiABBiKBRiGA5gDAOIDBRIBMSBAiAYBkAYIkgcDMS4y&sclient=gws-wiz-serp
+    app.post(
+      "/api/v1/product_categorie",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const data = req.body;
+        data.categorieId = new ObjectId(`${data?.categorieId}`);
+        data.productId = new ObjectId(`${data?.productId}`);
+
+        // business logic
+        const isExistProduct = await productCategorie
+          .findOne({ _id: data.categorieId })
+          .then((data) => data?._id);
+
+        if (!isExistProduct) {
+          return res.status(httpStatus.NOT_FOUND).send({
+            success: false,
+            message: "This Categoeis is Not Found",
+            status: httpStatus.NOT_FOUND,
+          });
+        }
+        post_data(subCategorieCollection, data)
+          .then((result) => {
+            return res.status(httpStatus.CREATED).send({
+              success: true,
+              status: httpStatus.CREATED,
+              message: "Successfully Uploaded Your Product",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.use((req, res, next) => {
+      return res
+        .status(httpStatus.NOT_FOUND)
+        .json({ success: false, message: "Server Issurs" });
+      next();
     });
 
     app.listen(port, () => {
