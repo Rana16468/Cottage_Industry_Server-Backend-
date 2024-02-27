@@ -5,7 +5,6 @@ const bcrypt = require("bcrypt");
 const {
   post_data,
   update_data,
-  get_all_data,
   specific_data,
   aggregate_data,
 } = require("./reuseable_method/resuable_functions");
@@ -253,6 +252,41 @@ async function run() {
             return res.status(httpStatus.CREATED).send({
               success: true,
               status: httpStatus.CREATED,
+              message: "Successfully Uploaded Your Product",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.get(
+      "/api/v1/get_specificProduct_categories",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const { categorieId, productId } = req.query;
+        const page = Number(req?.query?.page) || 1;
+        const limit = Number(req?.query?.limit) || 25;
+        const query = [
+          {
+            $match: {
+              categorieId: new ObjectId(categorieId),
+              productId: new ObjectId(productId),
+            },
+          },
+        ];
+
+        aggregate_data(query, subCategorieCollection, page, limit)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              status: httpStatus.ok,
               message: "Successfully Uploaded Your Product",
               data: result,
             });

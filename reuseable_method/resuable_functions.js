@@ -1,10 +1,10 @@
 const { ObjectId } = require("mongodb");
 
-const get_all_data = async (databaseCollection, query, Page = 1, Size = 0) => {
+const get_all_data = async (databaseCollection, query, page = 1, limit = 0) => {
   const result = await databaseCollection
     .find(query)
-    .skip(Page * Size)
-    .limit(Size)
+    .skip((page - 1) * limit)
+    .limit(limit)
     .toArray();
   return result;
 };
