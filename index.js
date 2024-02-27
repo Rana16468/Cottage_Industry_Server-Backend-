@@ -114,6 +114,9 @@ async function run() {
       "/api/v1/all_product",
       auth(USER_ROLE.Seller, USER_ROLE.Buyer),
       async (req, res) => {
+        const page = Number(req?.query?.page) || 1;
+        const limit = Number(req?.query?.limit) || 25;
+
         const query = [
           {
             $unwind: "$productList", // Deconstruct/breckdown the productList array
@@ -133,7 +136,7 @@ async function run() {
           },
         ];
 
-        aggregate_data(query, productCategorie)
+        aggregate_data(query, productCategorie, page, limit)
           .then((result) => {
             return res.send({
               success: true,

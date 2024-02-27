@@ -1,7 +1,11 @@
 const { ObjectId } = require("mongodb");
 
-const get_all_data = async (databaseCollection, query) => {
-  const result = await databaseCollection.find(query).toArray();
+const get_all_data = async (databaseCollection, query, Page = 1, Size = 0) => {
+  const result = await databaseCollection
+    .find(query)
+    .skip(Page * Size)
+    .limit(Size)
+    .toArray();
   return result;
 };
 
@@ -28,8 +32,17 @@ const delete_data = async (id, databaseCollection) => {
   return result;
 };
 
-const aggregate_data = async (data, databaseCollection) => {
-  return await databaseCollection.aggregate(data).toArray();
+const aggregate_data = async (
+  data,
+  databaseCollection,
+  page = 1,
+  limit = 0
+) => {
+  return await databaseCollection
+    .aggregate(data)
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .toArray();
 };
 
 module.exports = {
