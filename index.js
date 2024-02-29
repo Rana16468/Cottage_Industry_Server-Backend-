@@ -326,7 +326,7 @@ async function run() {
         }
         // is it exist product deatisl alredy
         const isExistProductDetails = await categoriesDetailsCollection
-          ?.findOne({ productId: new ObjectId(`${data?.productId}`) })
+          ?.findOne({ SubcategorieId: new ObjectId(`${data?.SubcategorieId}`) })
           .catch((error) => {
             console.log(error?.message);
           });
@@ -341,7 +341,7 @@ async function run() {
         // image uploding process ----> using cloudnary ---> write a code next time
 
         // product details uploding process
-        data.categorieId = new ObjectId(`${data?.categorieId}`);
+        data.SubcategorieId = new ObjectId(`${data?.SubcategorieId}`);
         data.productId = new ObjectId(`${data?.productId}`);
         post_data(categoriesDetailsCollection, data)
           .then((result) => {
@@ -349,6 +349,58 @@ async function run() {
               success: true,
               status: httpStatus.CREATED,
               message: "Successfully Uploaded Product Images",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // specific product product details
+
+    app.get(
+      "/api/v1/specific_product_details",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const { productId, SubcategorieId } = req?.query;
+
+        const query = [
+          // statge 1
+          {
+            $match: {
+              productId: new ObjectId(productId),
+
+              SubcategorieId: new ObjectId(SubcategorieId),
+            },
+          },
+          // statge 2
+          {
+            $lookup: {
+              from: "subcategorie",
+              localField: "SubcategorieId",
+              foreignField: "_id",
+              as: "categorie",
+            },
+          },
+        ];
+
+        aggregate_data(
+          query,
+          categoriesDetailsCollection,
+          (limit = 1),
+          (page = 1)
+        )
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              status: httpStatus.OK,
+              message: "Successfully Rectrive Details",
               data: result,
             });
           })
