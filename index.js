@@ -18,6 +18,7 @@ const {
   productCategorie,
   userCollection,
   subCategorieCollection,
+  categoriesDetailsCollection,
 } = require("./DB/mongoDB");
 const app = express();
 const port = process.env.PORT || 5000;
@@ -193,7 +194,7 @@ async function run() {
         );
         const data = { isAdmin: false, ...req.body };
 
-        // checked user  validation
+        // checked user  validation/ business logic
         const isUserExist = await userCollection
           .findOne({ email: req.body.email })
           .then((data) => data?._id);
@@ -286,8 +287,68 @@ async function run() {
           .then((result) => {
             return res.status(httpStatus.OK).send({
               success: true,
-              status: httpStatus.ok,
+              status: httpStatus.OK,
               message: "Successfully Uploaded Your Product",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // image details
+    app.post(
+      "/api/v1/product_details",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const data = req.body;
+        const isExistProductSubCategories = await subCategorieCollection
+          .findOne({
+            productId: new ObjectId(`${data?.productId}`),
+          })
+          .then((data) => data._id)
+          .catch((error) => {
+            console.log(error?.message);
+          });
+
+        if (!isExistProductSubCategories) {
+          return res.status(httpStatus.NOT_FOUND).send({
+            success: false,
+            message: "This Categoeis is Not Found",
+            status: httpStatus.NOT_FOUND,
+          });
+        }
+        // is it exist product deatisl alredy
+        const isExistProductDetails = await categoriesDetailsCollection
+          ?.findOne({ productId: new ObjectId(`${data?.productId}`) })
+          .catch((error) => {
+            console.log(error?.message);
+          });
+        if (isExistProductDetails) {
+          return res.status(httpStatus.FOUND).send({
+            success: false,
+            message: "This Product Details Alredy Exist",
+            status: httpStatus.FOUND,
+          });
+        }
+
+        // image uploding process ----> using cloudnary ---> write a code next time
+
+        // product details uploding process
+        data.categorieId = new ObjectId(`${data?.categorieId}`);
+        data.productId = new ObjectId(`${data?.productId}`);
+        post_data(categoriesDetailsCollection, data)
+          .then((result) => {
+            return res.status(httpStatus.CREATED).send({
+              success: true,
+              status: httpStatus.CREATED,
+              message: "Successfully Uploaded Product Images",
               data: result,
             });
           })
