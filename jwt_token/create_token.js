@@ -36,7 +36,10 @@ const auth = (...requireRoles) => {
     const { role, email } = decoded;
     const isUserExist = await userCollection
       .findOne({ email })
-      .then((data) => data._id);
+      .then((data) => data._id)
+      .catch((error) => {
+        throw new Error(error?.message);
+      });
     if (!isUserExist) {
       return res.status(httpStatus.NOT_FOUND).send({
         success: false,

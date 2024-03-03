@@ -16,6 +16,7 @@ const productCategorie = db.collection("categorie");
 const userCollection = db.collection("user");
 const subCategorieCollection = db.collection("subcategorie");
 const categoriesDetailsCollection = db.collection("details");
+const chatbotCollection = db.collection("chatbot");
 
 module.exports = {
   productCategorie,
@@ -23,4 +24,5 @@ module.exports = {
   userCollection,
   subCategorieCollection,
   categoriesDetailsCollection,
+  chatbotCollection,
 };
