@@ -62,10 +62,23 @@ async function run() {
       });
     });
 
-    app.post("/api/v1/product", async (req, res) => {
-      const data = req.body;
+    app.post("/api/v1/product", auth(USER_ROLE.Seller), async (req, res) => {
+      // validation Checking
+      const { email } = req.user;
 
-      const categories = post_data(productCategorie, data);
+      const isExistCategorie = await productCategorie
+        .findOne({ email, categorie_name: req.body.categorie_name })
+        .then((data) => data?._id);
+
+      if (isExistCategorie) {
+        return res.status(httpStatus.FOUND).send({
+          success: true,
+          message: "This Categories Alredy Exist",
+          status: httpStatus.FOUND,
+        });
+      }
+
+      const categories = post_data(productCategorie, req.body);
       categories
         .then((result) => {
           return res.send({
@@ -156,18 +169,27 @@ async function run() {
       }
     );
 
+    // get all specific seller  categoriesal data
+
     app.get(
       "/api/v1/specific_user_product",
       auth(USER_ROLE.Seller),
       async (req, res) => {
-        const query = req.query;
+        const page = Number(req?.query?.page) || 1;
+        const limit = Number(req?.query?.limit) || 25;
+        const query = [
+          // state1
+          {
+            $match: { email: req.user.email },
+          },
+        ];
 
-        specific_data(productCategorie, query)
+        aggregate_data(query, productCategorie, page, limit)
           .then((result) => {
             return res.send({
               success: true,
-              message: "Successfully Get All Product",
               status: httpStatus.OK,
+              message: "Successfully Rectrive Specific Seller Data",
               data: result,
             });
           })
