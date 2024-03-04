@@ -416,73 +416,82 @@ async function run() {
     );
 
     // messanger
-    app.patch(
-      "/api/v1/message",
-      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
-      async (req, res) => {
-        const { email } = req.user;
+    app.patch("/api/v1/message", auth(USER_ROLE.Buyer), async (req, res) => {
+      const { email } = req.user;
 
-        req.body.SubcategorieId = new ObjectId(`${req.body.SubcategorieId}`);
-        req.body.productId = new ObjectId(`${req.body.productId}`);
-        // state 1---> validation checking done
-        const isExistSubCategorie = await categoriesDetailsCollection
-          .findOne({ SubcategorieId: req.body.SubcategorieId })
-          .then((data) => data?._id)
-          .catch((error) => {
-            throw new Error(error?.message);
-          });
+      req.body.DetailsId = new ObjectId(`${req.body.DetailsId}`);
+      // state 1---> validation checking done
+      const isExistSubCategorie = await categoriesDetailsCollection
+        .findOne({ _id: req.body.DetailsId })
+        .then((data) => data?._id)
+        .catch((error) => {
+          throw new Error(error?.message);
+        });
 
-        if (!isExistSubCategorie) {
-          return res.status(httpStatus.NOT_FOUND).send({
-            success: false,
-            message: "This Product Details Not Exist",
-            status: httpStatus.NOT_EXTENDED,
-          });
-        }
-        // state 2---> validation checking done
-
-        const userId = await userCollection
-          .findOne({ email })
-          .then((data) => data._id)
-          .catch((error) => {
-            throw new Error(error?.message);
-          });
-        if (!userId) {
-          return res.status(httpStatus.NOT_FOUND).send({
-            success: false,
-            message: "This User Not Exist In the Database",
-            status: httpStatus.NOT_EXTENDED,
-          });
-        }
-        //  state -3  store database message details
-        const filter = { userId };
-        const updateDoc = {
-          $push: {
-            queries: {
-              ...req.body,
-              reply: [],
-            },
-          },
-        };
-
-        update_data(filter, updateDoc, chatbotCollection)
-          .then((result) => {
-            return res.send({
-              success: true,
-              message: "Send Message Successfully",
-              status: httpStatus.OK,
-              data: result,
-            });
-          })
-          .catch((error) => {
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-              success: false,
-              message: error?.message,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            });
-          });
+      if (!isExistSubCategorie) {
+        return res.status(httpStatus.NOT_FOUND).send({
+          success: false,
+          message: "This Product Details Not Exist",
+          status: httpStatus.NOT_EXTENDED,
+        });
       }
-    );
+
+      //  state -3  store database message details
+      const filter = { email, DetailsId: req.body.DetailsId };
+      const updateDoc = {
+        $push: {
+          queries: {
+            messageId: new ObjectId().toString(),
+            message: req.body.message,
+            reply: [],
+          },
+        },
+      };
+
+      update_data(filter, updateDoc, chatbotCollection)
+        .then((result) => {
+          return res.send({
+            success: true,
+            message: "Send Message Successfully",
+            status: httpStatus.OK,
+            data: result,
+          });
+        })
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        });
+    });
+
+    app.patch("/api/v1/reply", auth(USER_ROLE.Seller), async (req, res) => {
+      const filter = {
+        _id: new ObjectId(`${req.body.chatId}`),
+        "queries.messageId": req.body.messageId,
+      };
+      const updateDoc = {
+        $push: { "queries.$.reply": { replymessage: req.body.replymessage } },
+      };
+
+      update_data(filter, updateDoc, chatbotCollection)
+        .then((result) => {
+          return res.send({
+            success: true,
+            message: "reply message successfuly recorded",
+            status: httpStatus.OK,
+            data: result,
+          });
+        })
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        });
+    });
 
     app.use((req, res, next) => {
       return res
