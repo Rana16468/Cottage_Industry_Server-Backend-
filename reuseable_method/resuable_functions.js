@@ -27,7 +27,7 @@ const update_data = async (filter, updateDoc, databaseCollection) => {
 };
 
 const delete_data = async (id, databaseCollection) => {
-  const query = { _id: new ObjectId(id) };
+  const query = { _id: new ObjectId(`${id}`) };
   const result = await databaseCollection.deleteOne(query);
   return result;
 };

@@ -7,6 +7,7 @@ const {
   update_data,
   specific_data,
   aggregate_data,
+  delete_data,
 } = require("./reuseable_method/resuable_functions");
 require("dotenv").config();
 
@@ -200,6 +201,30 @@ async function run() {
               status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           });
+      }
+    );
+
+    // delete categorie
+    app.delete(
+      "/api/v1/delete_categorie",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { id } = req.query;
+        console.log(id); // multiple collection delete at a time
+        /* delete_data(id,productCategorie).then((result)=>{
+          return res.status(httpStatus.OK).send({
+            success: true,
+            status: httpStatus.OK,
+            message: " Categorie Delete Successfull",
+           
+          });
+        }).catch((error)=>{
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        })*/
       }
     );
 
