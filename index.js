@@ -5,9 +5,8 @@ const bcrypt = require("bcrypt");
 const {
   post_data,
   update_data,
-  specific_data,
+
   aggregate_data,
-  delete_data,
 } = require("./reuseable_method/resuable_functions");
 require("dotenv").config();
 
@@ -225,6 +224,37 @@ async function run() {
             status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         })*/
+      }
+    );
+
+    // update categorie
+
+    app.put(
+      "/api/v1/update_categorie/:id",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { id } = req.params;
+        const filter = { _id: new ObjectId(id) };
+
+        const updateDoc = {
+          $set: req.body,
+        };
+        update_data(filter, updateDoc, productCategorie)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              status: httpStatus.OK,
+              message: "Update Categories Successfully",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
       }
     );
 
