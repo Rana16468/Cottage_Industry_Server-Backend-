@@ -21,6 +21,10 @@ const {
   categoriesDetailsCollection,
   chatbotCollection,
 } = require("./DB/mongoDB");
+const {
+  upload,
+  sendImageToCloudinary,
+} = require("./reuseable_method/ImageGenarator");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -384,8 +388,11 @@ async function run() {
     app.post(
       "/api/v1/product_details",
       auth(USER_ROLE.Seller),
+      upload.array("photo"),
       async (req, res) => {
-        const data = req.body;
+        const { formData } = req.body; // text data
+        const data = JSON.parse(formData);
+        // checked --- business logic  // sub categorie exist or not
         const isExistProductSubCategories = await subCategorieCollection
           .findOne({
             productId: new ObjectId(`${data?.productId}`),
@@ -402,6 +409,7 @@ async function run() {
             status: httpStatus.NOT_FOUND,
           });
         }
+
         // is it exist product deatisl alredy
         const isExistProductDetails = await categoriesDetailsCollection
           ?.findOne({ SubcategorieId: new ObjectId(`${data?.SubcategorieId}`) })
@@ -417,26 +425,51 @@ async function run() {
         }
 
         // image uploding process ----> using cloudnary ---> write a code next time
+        const randomNumber = Math.floor(Math.random() * 100) + 1; //random number geberator
+        const imgName = "image";
+        const uploadPromises = req.files.map(async (file, index) => {
+          const imageName = `${imgName.trim()}${randomNumber + index + 1}`;
+          const imageUrl = await sendImageToCloudinary(imageName, file.path);
+          return imageUrl?.secure_url;
+        });
 
-        // product details uploding process
-        data.SubcategorieId = new ObjectId(`${data?.SubcategorieId}`);
-        data.productId = new ObjectId(`${data?.productId}`);
-        post_data(categoriesDetailsCollection, data)
-          .then((result) => {
-            return res.status(httpStatus.CREATED).send({
-              success: true,
-              status: httpStatus.CREATED,
-              message: "Successfully Uploaded Product Images",
-              data: result,
-            });
-          })
-          .catch((error) => {
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+        try {
+          const imageList = await Promise.all(uploadPromises);
+          // product details uploding process
+          if (!imageList?.length) {
+            return res.status(httpStatus.NOT_FOUND).send({
               success: false,
-              message: error?.message,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message: "Cloudenery Issues Image Not Uploding",
+              status: httpStatus.NOT_FOUND,
             });
-          });
+          }
+          const SubcategorieId = new ObjectId(`${data?.SubcategorieId}`);
+          const productId = new ObjectId(`${data?.productId}`);
+          const postData = {
+            SubcategorieId,
+            productId,
+            imageList,
+          };
+
+          post_data(categoriesDetailsCollection, postData)
+            .then((result) => {
+              return res.status(httpStatus.CREATED).send({
+                success: true,
+                status: httpStatus.CREATED,
+                message: "Successfully Uploaded Product Images",
+                data: result,
+              });
+            })
+            .catch((error) => {
+              return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+                success: false,
+                message: error?.message,
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              });
+            });
+        } catch (error) {
+          console.log(error?.message);
+        }
       }
     );
 
