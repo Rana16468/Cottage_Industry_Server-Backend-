@@ -451,6 +451,23 @@ async function run() {
             imageList,
           };
 
+          const isDetails = await subCategorieCollection.updateOne(
+            { _id: SubcategorieId },
+            {
+              $set: {
+                isDetails: true,
+              },
+            },
+            { upsert: true }
+          );
+          if (!isDetails) {
+            return res.status(httpStatus.NOT_FOUND).send({
+              success: false,
+              message: "Issues By the is Details",
+              status: httpStatus?.NOT_FOUND,
+            });
+          }
+
           post_data(categoriesDetailsCollection, postData)
             .then((result) => {
               return res.status(httpStatus.CREATED).send({
@@ -468,7 +485,11 @@ async function run() {
               });
             });
         } catch (error) {
-          console.log(error?.message);
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
         }
       }
     );
