@@ -132,7 +132,7 @@ async function run() {
       "/api/v1/all_product",
       auth(USER_ROLE.Seller, USER_ROLE.Buyer),
       async (req, res) => {
-        const page = Number(req?.query?.page) || 1;
+        const page = Number(req?.query?.page) || 1; // page --->
         const limit = Number(req?.query?.limit) || 25;
 
         const query = [
@@ -622,6 +622,67 @@ async function run() {
             status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         });
+    });
+    // update sub categorial data
+
+    app.put(
+      "/api/v1/update_sub_categorie/:id",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { id } = req.params;
+        const data = req.body;
+
+        // checked user validation code needed  --> business logics
+
+        const filter = {
+          _id: new ObjectId(id),
+        };
+        const updateDoc = {
+          $set: data,
+        };
+
+        update_data(filter, updateDoc, subCategorieCollection)
+          .then((result) => {
+            return res.send({
+              success: true,
+              message: "Sub Categorical Data Update Successfully",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // update image details
+    app.put("/api/v1/update_image_details/:id", async (req, res) => {
+      const { id } = req.params;
+      const filter = { _id: new ObjectId(id) };
+      const indexToUpdate = 1;
+      const newImageUrl =
+        "https://cdn.britannica.com/03/194003-050-4E9011A7/volute-krater-Metropolitan-Museum-of-Art-New-c-450-bce.jpg";
+
+      const updateDoc = {
+        $set: {
+          $set: { [`imageList.${indexToUpdate}`]: newImageUrl },
+        },
+      };
+
+      res.send({
+        success: true,
+        message: "Sub Categorical Data Update Successfully",
+        status: httpStatus.OK,
+        data: {
+          filter,
+          updateDoc,
+        },
+      });
     });
 
     app.use((req, res, next) => {
