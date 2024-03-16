@@ -661,29 +661,47 @@ async function run() {
     );
 
     // update image details
-    app.put("/api/v1/update_image_details/:id", async (req, res) => {
-      const { id } = req.params;
-      const filter = { _id: new ObjectId(id) };
-      const indexToUpdate = 1;
-      const newImageUrl =
-        "https://cdn.britannica.com/03/194003-050-4E9011A7/volute-krater-Metropolitan-Museum-of-Art-New-c-450-bce.jpg";
+    app.put(
+      "/api/v1/update_image_details/:id",
+      auth(USER_ROLE.Seller),
+      upload.array("photo"),
+      async (req, res) => {
+        const { id } = req.params;
+        const filter = { _id: new ObjectId(id) };
+        const data = req.body;
+        /* 
+         const { formData } = req.body; // text data
+          const data = JSON.parse(formData);
 
-      const updateDoc = {
-        $set: {
-          $set: { [`imageList.${indexToUpdate}`]: newImageUrl },
-        },
-      };
+            const randomNumber = Math.floor(Math.random() * 100) + 1; //random number geberator
+           const imgName = "image";
+           const imageName = `${imgName.trim()}${randomNumber + data.indexToUpdate + 1}`;
+            const {secure_url} = await sendImageToCloudinary(imageName, file.path);
+            console.log(secure_url);
+         
+        */
+        const updateDoc = {
+          $set: { [`imageList.${data.indexToUpdate}`]: data.newImageUrl },
+        };
 
-      res.send({
-        success: true,
-        message: "Sub Categorical Data Update Successfully",
-        status: httpStatus.OK,
-        data: {
-          filter,
-          updateDoc,
-        },
-      });
-    });
+        update_data(filter, updateDoc, categoriesDetailsCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Details Image Update Successfully",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
 
     app.use((req, res, next) => {
       return res
