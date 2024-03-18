@@ -664,22 +664,12 @@ async function run() {
     app.put(
       "/api/v1/update_image_details/:id",
       auth(USER_ROLE.Seller),
-      upload.array("photo"),
+
       async (req, res) => {
         const { id } = req.params;
         const filter = { _id: new ObjectId(id) };
         const data = req.body;
-        /* 
-         const { formData } = req.body; // text data
-          const data = JSON.parse(formData);
 
-            const randomNumber = Math.floor(Math.random() * 100) + 1; //random number geberator
-           const imgName = "image";
-           const imageName = `${imgName.trim()}${randomNumber + data.indexToUpdate + 1}`;
-            const {secure_url} = await sendImageToCloudinary(imageName, file.path);
-            console.log(secure_url);
-         
-        */
         const updateDoc = {
           $set: { [`imageList.${data.indexToUpdate}`]: data.newImageUrl },
         };
@@ -702,6 +692,33 @@ async function run() {
           });
       }
     );
+
+    // delete image details
+
+    app.put("/api/v1/deleteImageDetails/:id", async (req, res) => {
+      const { id } = req.params;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $pull: { imageList: { $eq: req.body.image } },
+      };
+
+      update_data(filter, updateDoc, categoriesDetailsCollection)
+        .then((result) => {
+          return res.status(httpStatus.OK).send({
+            success: true,
+            message: "Delete Successfully",
+            status: httpStatus.OK,
+            data: result,
+          });
+        })
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        });
+    });
 
     app.use((req, res, next) => {
       return res
