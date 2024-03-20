@@ -623,6 +623,41 @@ async function run() {
           });
         });
     });
+
+    // get user message and replay message both end (buyer and seller)
+    app.get(
+      "/api/v1/display_chatting_message/:productDetailsId",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const { productDetailsId } = req.params;
+        const { email } = req.user;
+        const query = [
+          {
+            $match: {
+              DetailsId: new ObjectId(productDetailsId),
+              email,
+            },
+          },
+        ];
+
+        aggregate_data(query, chatbotCollection, (page = 1), (limit = 25))
+          .then((result) => {
+            return res.send({
+              success: true,
+              message: "Successfully Get Specific Product Caht",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
     // update sub categorial data
 
     app.put(
