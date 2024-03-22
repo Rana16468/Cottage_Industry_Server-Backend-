@@ -7,6 +7,7 @@ const {
   update_data,
 
   aggregate_data,
+  get_all_data,
 } = require("./reuseable_method/resuable_functions");
 require("dotenv").config();
 
@@ -713,6 +714,35 @@ async function run() {
             return res.status(httpStatus.OK).send({
               success: true,
               message: "Delete Successfully",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // reply message --> get Buyer message
+
+    app.get(
+      "/api/v1/display_specific_product_chat/:DetailsId",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const query = {
+          DetailsId: new ObjectId(req.params.DetailsId),
+        };
+
+        get_all_data(chatbotCollection, query)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfuly Get Speciific Product Message",
               status: httpStatus.OK,
               data: result,
             });
