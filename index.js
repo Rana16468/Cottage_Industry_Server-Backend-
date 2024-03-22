@@ -658,6 +658,75 @@ async function run() {
           });
       }
     );
+
+    // update chatting message from buyer
+
+    app.patch(
+      "/api/v1/update_chatting_message",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const { _id, messageId, message } = req.body;
+        const filter = {
+          _id: new ObjectId(`${_id}`),
+          "queries.messageId": messageId,
+        };
+
+        const updateDoc = {
+          $set: { "queries.$.message": message },
+        };
+        update_data(filter, updateDoc, chatbotCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Update",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // delete chatbot message
+
+    app.patch(
+      "/api/v1/delete_chettingMessage",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const { _id, messageId } = req.body;
+        const filter = {
+          _id: new ObjectId(`${_id}`),
+          "queries.messageId": messageId,
+        };
+        const updateDoc = {
+          $unset: { "queries.$.message": "" },
+        };
+
+        update_data(filter, updateDoc, chatbotCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Delete Successfully",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
     // update sub categorial data
 
     app.put(
