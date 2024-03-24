@@ -757,6 +757,78 @@ async function run() {
       }
     );
 
+    // seller end --- update reply message
+
+    app.patch(
+      "/api/v1/update_reply_message",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { _id, messageId, index, replymessage } = req.body;
+        const filter = {
+          _id: new ObjectId(`${_id}`),
+          "queries.messageId": messageId,
+        };
+
+        const updaetDoc = {
+          $set: {
+            [`queries.$.reply.${index}`]: { replymessage },
+          },
+        };
+
+        update_data(filter, updaetDoc, chatbotCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Update Reply Message",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // seller end delete reply message
+    app.patch(
+      "/api/v1/delete_reply_message",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { _id, messageId, index } = req.body;
+        const filter = {
+          _id: new ObjectId(`${_id}`),
+          "queries.messageId": messageId,
+        };
+
+        const updateDoc = {
+          $unset: {
+            [`queries.$.reply.${index}`]: { $exists: true },
+          },
+        };
+
+        update_data(filter, updateDoc, chatbotCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Deleted Reply Message",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
     // update sub categorial data
 
     app.put(
