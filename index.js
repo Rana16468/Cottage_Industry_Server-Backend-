@@ -21,6 +21,7 @@ const {
   subCategorieCollection,
   categoriesDetailsCollection,
   chatbotCollection,
+  addToCardCollection,
 } = require("./DB/mongoDB");
 const {
   upload,
@@ -267,7 +268,7 @@ async function run() {
 
     app.post(
       "/api/v1/user_information",
-      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+
       async (req, res) => {
         Reflect.deleteProperty(req.body, process.env.TERM);
         Reflect.deleteProperty(req.body, process.env.CONFIRM_PASSWORD);
@@ -276,19 +277,6 @@ async function run() {
           Number(process.env.BCRYPT_SALT_ROUNDS)
         );
         const data = { isAdmin: false, ...req.body };
-
-        // checked user  validation/ business logic
-        const isUserExist = await userCollection
-          .findOne({ email: req.body.email })
-          .then((data) => data?._id);
-
-        if (isUserExist) {
-          return res.status(httpStatus.ALREADY_REPORTED).send({
-            success: false,
-            message: "User Already Exist",
-            status: httpStatus.ALREADY_REPORTED,
-          });
-        }
 
         post_data(userCollection, data)
           .then((result) => {
@@ -925,6 +913,94 @@ async function run() {
           });
         });
     });
+
+    //started the journey add to Card Product Started
+
+    app.post(
+      "/api/v1/addToCard_Product",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const { email } = req.user;
+        req.body._id = new ObjectId(`${req.body._id}`);
+        const addToCard = { email, count: 1, ...req.body };
+
+        post_data(addToCardCollection, addToCard)
+          .then((result) => {
+            return res.status(httpStatus.CREATED).send({
+              success: true,
+              message: "Successfuly Added Product",
+              status: httpStatus.CREATED,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.get(
+      "/api/v1/my_addToCard_product",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const query = {
+          email: req.user.email,
+        };
+
+        get_all_data(addToCardCollection, query, (page = 1), (limit = 50))
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Get My Product",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.patch(
+      `/api/v1/add_to_product_count/:id`,
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const { id } = req.params;
+
+        const filter = {
+          _id: new ObjectId(id),
+        };
+        const updateDoc = {
+          $set: req.body,
+        };
+
+        update_data(filter, updateDoc, addToCardCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Get My Product",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
 
     app.use((req, res, next) => {
       return res
