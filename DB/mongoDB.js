@@ -22,6 +22,7 @@ const addToCardCollection = db.collection("addtocard");
 module.exports = {
   productCategorie,
   connectedDatabase,
+  client,
   userCollection,
   subCategorieCollection,
   categoriesDetailsCollection,

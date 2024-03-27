@@ -22,6 +22,7 @@ const {
   categoriesDetailsCollection,
   chatbotCollection,
   addToCardCollection,
+  client,
 } = require("./DB/mongoDB");
 const {
   upload,
@@ -922,7 +923,7 @@ async function run() {
       async (req, res) => {
         const { email } = req.user;
         req.body._id = new ObjectId(`${req.body._id}`);
-        const addToCard = { email, count: 1, ...req.body };
+        const addToCard = { email, count: 0, ...req.body };
 
         post_data(addToCardCollection, addToCard)
           .then((result) => {
@@ -980,25 +981,59 @@ async function run() {
           _id: new ObjectId(id),
         };
         const updateDoc = {
-          $set: req.body,
+          $set: { count: req.body.count },
         };
 
-        update_data(filter, updateDoc, addToCardCollection)
-          .then((result) => {
-            return res.status(httpStatus.OK).send({
-              success: true,
-              message: "Successfully Get My Product",
-              status: httpStatus.OK,
-              data: result,
-            });
-          })
-          .catch((error) => {
-            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-              success: false,
-              message: error?.message,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            });
+        //console.log(req.body);
+        const isExistProduct = await subCategorieCollection.findOne(filter);
+        if (isExistProduct?.quentity - 1 <= 0) {
+          return res.status(httpStatus.FORBIDDEN).send({
+            success: true,
+            status: httpStatus.FORBIDDEN,
+            message: "Your Product Quantity Ended",
           });
+        }
+
+        //console.log(isExistProduct);
+        const session = client.startSession();
+        try {
+          session.startTransaction();
+          // const newQuantity = isExistProduct?.quentity - req.body.count;
+          const newQuantity =
+            req.body.condition === process.env.CONDITION_INCREMENT
+              ? isExistProduct?.quentity - 1
+              : isExistProduct?.quentity + 1;
+
+          const updateQuentity = await subCategorieCollection.updateOne(
+            filter,
+            { $set: { quentity: newQuantity } },
+            { upsert: true, session }
+          );
+
+          if (!updateQuentity.modifiedCount > 1) {
+            throw new Error("Session is Faield Sub Categories Collextion");
+          }
+          const updateAddToCard = await addToCardCollection.updateOne(
+            filter,
+            updateDoc,
+            { upsert: true, session }
+          );
+
+          if (!updateAddToCard.modifiedCount > 1) {
+            throw new Error("Session is Faield Add To Card  Collextion");
+          }
+          await session.commitTransaction();
+          await session.endSession();
+          return res.status(httpStatus.OK).send({
+            success: true,
+            message: "Successfully Get My Product",
+            status: httpStatus.OK,
+            data: updateAddToCard,
+          });
+        } catch (error) {
+          await session.abortTransaction();
+          await session.endSession();
+        }
       }
     );
 
