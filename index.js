@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { ObjectId } = require("mongodb");
 const bcrypt = require("bcrypt");
+const SSLCommerzPayment = require("sslcommerz-lts");
 const {
   post_data,
   update_data,
@@ -28,12 +29,18 @@ const {
   upload,
   sendImageToCloudinary,
 } = require("./reuseable_method/ImageGenarator");
+const { paymentGetWay } = require("./reuseable_method/paymentGetWay");
 const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+//ssl commerz functionality
+const store_id = process.env.STORE_ID;
+const store_password = process.env.STORE_PASSWORD;
+const is_live = false; //true for live, false for sandbox
 
 // MongoDB Connection URL
 
@@ -1036,6 +1043,100 @@ async function run() {
         }
       }
     );
+
+    // delete add to card product
+
+    app.delete(
+      "/api/v1/delete_add_to_cardItem/:id",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const filter = {
+          _id: new ObjectId(req.params.id),
+        };
+
+        const deleteFilte = {
+          _id: new ObjectId(req.params.id),
+          email: req.body.email,
+        };
+
+        const specificProduct = await subCategorieCollection.findOne(filter);
+        const newQuentity = specificProduct.quentity + req.body.count;
+        // start Transaction Roll Back
+        const session = client.startSession();
+        try {
+          session.startTransaction();
+          const updateQuentity = await subCategorieCollection.updateOne(
+            filter,
+            { $set: { quentity: newQuentity } },
+            { upsert: true, session }
+          );
+          if (!updateQuentity.modifiedCount > 1) {
+            throw new Error("Session is Faield Sub Categories Collection");
+          }
+
+          const deleteAddToCard = await addToCardCollection.deleteOne(
+            deleteFilte,
+            {
+              session,
+            }
+          );
+          if (!deleteAddToCard.deletedCount > 1) {
+            throw new Error("Session is Faield Delete Add To Card Collection");
+          }
+          await session.commitTransaction();
+          await session.endSession();
+          return res.status(httpStatus.OK).send({
+            success: true,
+            message: "Successfully Deleted",
+            status: httpStatus.OK,
+            data: deleteAddToCard,
+          });
+        } catch (error) {
+          await session.abortTransaction();
+          await session.endSession();
+        }
+      }
+    );
+
+    // order summary
+    app.post("/api/v1/order", async (req, res) => {
+      const tran_id = new Date().getTime();
+
+      const productData = {
+        UserName: " Sohel Rana",
+        email: "amsr215019@gmail.com",
+        address: "Thakurgoan",
+        phoneNumber: "01722305054",
+        currency: "BDT",
+        price: 1200,
+      };
+      const data = paymentGetWay(productData, tran_id);
+
+      const sslcz = new SSLCommerzPayment(store_id, store_password, is_live);
+
+      // store database ---->  transactionID
+      const finalOrder = {
+        ...productData,
+        paidStatus: false,
+        transactionID: tran_id,
+        date: new Date().toString(),
+      };
+
+      sslcz.init(data).then((apiResponse) => {
+        // Redirect the user to payment gateway
+        let GatewayPageURL = apiResponse.GatewayPageURL;
+        console.log(GatewayPageURL);
+        res.send({ url: GatewayPageURL });
+        //  console.log('Redirecting to: ', GatewayPageURL)
+      });
+    });
+    app.post("/api/v1/payment/success/:tranId", async (req, res) => {
+      console.log(req.params);
+    });
+
+    app.post("/api/v1/payment/fail/:tranId", async (req, res) => {
+      console.log(req.params);
+    });
 
     app.use((req, res, next) => {
       return res
