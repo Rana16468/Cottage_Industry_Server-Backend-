@@ -24,6 +24,7 @@ const {
   chatbotCollection,
   addToCardCollection,
   client,
+  paymentCollection,
 } = require("./DB/mongoDB");
 const {
   upload,
@@ -1099,17 +1100,9 @@ async function run() {
     );
 
     // order summary
-    app.post("/api/v1/order", async (req, res) => {
+    app.post("/api/v1/order", auth(USER_ROLE.Buyer), async (req, res) => {
       const tran_id = new Date().getTime();
-
-      const productData = {
-        UserName: " Sohel Rana",
-        email: "amsr215019@gmail.com",
-        address: "Thakurgoan",
-        phoneNumber: "01722305054",
-        currency: "BDT",
-        price: 1200,
-      };
+      const productData = req.body;
       const data = paymentGetWay(productData, tran_id);
 
       const sslcz = new SSLCommerzPayment(store_id, store_password, is_live);
@@ -1119,24 +1112,83 @@ async function run() {
         ...productData,
         paidStatus: false,
         transactionID: tran_id,
-        date: new Date().toString(),
       };
+      // post payment information
+      post_data(paymentCollection, finalOrder)
+        .then((result) => {
+          return;
+        })
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        });
 
       sslcz.init(data).then((apiResponse) => {
         // Redirect the user to payment gateway
         let GatewayPageURL = apiResponse.GatewayPageURL;
-        console.log(GatewayPageURL);
         res.send({ url: GatewayPageURL });
         //  console.log('Redirecting to: ', GatewayPageURL)
       });
     });
+
     app.post("/api/v1/payment/success/:tranId", async (req, res) => {
-      console.log(req.params);
+      const tranId = req.params.tranId;
+      const filter = {
+        transactionID: Number(tranId),
+      };
+      const updateDoc = {
+        $set: {
+          paidStatus: true,
+        },
+      };
+      update_data(filter, updateDoc, paymentCollection)
+        .then((result) => {
+          if (result.modifiedCount > 0) {
+            return res.redirect(
+              `http://localhost:3000/payment/success/${req.params.tranId}`
+            );
+          }
+        })
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+            success: false,
+            message: error?.message,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        });
     });
 
     app.post("/api/v1/payment/fail/:tranId", async (req, res) => {
       console.log(req.params);
     });
+
+    app.get(
+      "/api/v1/my_all_order_summary",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const { email } = req.user;
+        const query = { email };
+        get_all_data(paymentCollection, query, (page = 1), (limit = 100))
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Get My All Order Summary",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
 
     app.use((req, res, next) => {
       return res

@@ -18,6 +18,7 @@ const subCategorieCollection = db.collection("subcategorie");
 const categoriesDetailsCollection = db.collection("details");
 const chatbotCollection = db.collection("chatbot");
 const addToCardCollection = db.collection("addtocard");
+const paymentCollection = db.collection("payment");
 
 module.exports = {
   productCategorie,
@@ -28,4 +29,5 @@ module.exports = {
   categoriesDetailsCollection,
   chatbotCollection,
   addToCardCollection,
+  paymentCollection,
 };
