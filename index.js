@@ -930,8 +930,24 @@ async function run() {
       auth(USER_ROLE.Buyer),
       async (req, res) => {
         const { email } = req.user;
-        req.body._id = new ObjectId(`${req.body._id}`);
-        const addToCard = { email, count: 0, ...req.body };
+        const subcategorieId = new ObjectId(`${req.body.id}`);
+
+        // checked alresy exist this product into my card
+
+        const isExistSubcategorieId = await addToCardCollection
+          .findOne({ subcategorieId })
+          .then((data) => data?._id);
+
+        if (isExistSubcategorieId) {
+          return res.status(httpStatus.FOUND).send({
+            success: true,
+            message: "Already Exist",
+            status: httpStatus.FOUND,
+          });
+        }
+
+        const addToCard = { subcategorieId, email, count: 0, ...req.body };
+        Reflect.deleteProperty(addToCard, "id");
 
         post_data(addToCardCollection, addToCard)
           .then((result) => {
@@ -1052,7 +1068,7 @@ async function run() {
       auth(USER_ROLE.Buyer),
       async (req, res) => {
         const filter = {
-          _id: new ObjectId(req.params.id),
+          _id: new ObjectId(`${req.body.subcategorieId}`),
         };
 
         const deleteFilte = {
@@ -1105,6 +1121,11 @@ async function run() {
       const productData = req.body;
       const data = paymentGetWay(productData, tran_id);
 
+      //product Id;
+      var purchaseProductId = productData.productId.map(
+        (id) => new ObjectId(`${id}`)
+      );
+
       const sslcz = new SSLCommerzPayment(store_id, store_password, is_live);
 
       // store database ---->  transactionID
@@ -1113,19 +1134,36 @@ async function run() {
         paidStatus: false,
         transactionID: tran_id,
       };
-      // post payment information
-      post_data(paymentCollection, finalOrder)
-        .then((result) => {
-          return;
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        });
 
+      // transaction Rollback
+      const session = client.startSession();
+      try {
+        session.startTransaction();
+        const paymentInfo = await paymentCollection.insertOne(
+          finalOrder,
+          session
+        );
+        if (!paymentInfo.acknowledged) {
+          throw new Error("Failed Payment Information Session");
+        }
+        const addedPaymentStatus = await addToCardCollection.updateMany(
+          { _id: { $in: purchaseProductId } },
+          { $set: { status: true } },
+          { upsert: true },
+          { session }
+        );
+
+        if (addedPaymentStatus.modifiedCount > 1) {
+          throw new Error("Session is Faield Add To Card  Collection");
+        }
+        await session.commitTransaction();
+        await session.endSession();
+
+        return " ";
+      } catch (error) {
+        await session.abortTransaction();
+        await session.endSession();
+      }
       sslcz.init(data).then((apiResponse) => {
         // Redirect the user to payment gateway
         let GatewayPageURL = apiResponse.GatewayPageURL;
@@ -1162,7 +1200,47 @@ async function run() {
     });
 
     app.post("/api/v1/payment/fail/:tranId", async (req, res) => {
-      console.log(req.params);
+      const { productId } = await paymentCollection.findOne(
+        {
+          transactionID: Number(req.params.tranId),
+        },
+        { projection: { productId: 1 } }
+      );
+      var purchaseProductId = productId?.map((id) => new ObjectId(`${id}`));
+
+      // start transaction rollback
+      const session = client.startSession();
+      try {
+        session.startTransaction();
+        const removePaymentStatus = await addToCardCollection.updateMany(
+          { _id: { $in: purchaseProductId } },
+          { $set: { status: false } },
+          { upsert: true },
+          { session }
+        );
+        if (removePaymentStatus.modifiedCount < 1) {
+          throw new Error("Failed to update addToCardCollection");
+        }
+
+        const removePaymentDetails = await paymentCollection.deleteOne(
+          { transactionID: Number(req.params.tranId) },
+          { session }
+        );
+        if (removePaymentDetails.deletedCount !== 1) {
+          throw new Error("Failed to delete paymentDetails");
+        }
+
+        await session.commitTransaction();
+        await session.endSession();
+
+        return res.send(
+          `http://localhost:3013/api/v1/payment/fail/${req.params.tranId}`
+        );
+      } catch (error) {
+        await session.abortTransaction();
+        await session.endSession();
+        return res.status(httpStatus.NOT_FOUND).send(error);
+      }
     });
 
     app.get(
