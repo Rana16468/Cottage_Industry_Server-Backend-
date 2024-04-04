@@ -946,7 +946,13 @@ async function run() {
           });
         }
 
-        const addToCard = { subcategorieId, email, count: 0, ...req.body };
+        const addToCard = {
+          subcategorieId,
+          email,
+          status: false,
+          count: 0,
+          ...req.body,
+        };
         Reflect.deleteProperty(addToCard, "id");
 
         post_data(addToCardCollection, addToCard)
@@ -1000,16 +1006,22 @@ async function run() {
       auth(USER_ROLE.Buyer),
       async (req, res) => {
         const { id } = req.params;
-
         const filter = {
           _id: new ObjectId(id),
+        };
+        const addToCardFilter = {
+          subcategorieId: new ObjectId(id),
+          email: req.user.email,
         };
         const updateDoc = {
           $set: { count: req.body.count },
         };
 
         //console.log(req.body);
-        const isExistProduct = await subCategorieCollection.findOne(filter);
+        const isExistProduct = await subCategorieCollection.findOne(filter, {
+          projection: { quentity: 1 },
+        });
+
         if (isExistProduct?.quentity - 1 <= 0) {
           return res.status(httpStatus.FORBIDDEN).send({
             success: true,
@@ -1028,6 +1040,8 @@ async function run() {
               ? isExistProduct?.quentity - 1
               : isExistProduct?.quentity + 1;
 
+          //proble or issues
+
           const updateQuentity = await subCategorieCollection.updateOne(
             filter,
             { $set: { quentity: newQuantity } },
@@ -1037,8 +1051,9 @@ async function run() {
           if (!updateQuentity.modifiedCount > 1) {
             throw new Error("Session is Faield Sub Categories Collextion");
           }
+
           const updateAddToCard = await addToCardCollection.updateOne(
-            filter,
+            addToCardFilter,
             updateDoc,
             { upsert: true, session }
           );
@@ -1076,8 +1091,24 @@ async function run() {
           email: req.body.email,
         };
 
+        // checked is payment completed or not
+        const query = {
+          subcategorieId: new ObjectId(`${req.body.subcategorieId}`),
+          email: req.user.email,
+        };
+
+        const isPaymentCompleted = await addToCardCollection.findOne(query, {
+          projection: { status: 1 },
+        });
+
         const specificProduct = await subCategorieCollection.findOne(filter);
-        const newQuentity = specificProduct.quentity + req.body.count;
+        let newQuentity;
+        if (!isPaymentCompleted.status) {
+          newQuentity = specificProduct.quentity + req.body.count;
+        } else {
+          newQuentity = specificProduct.quentity;
+        }
+
         // start Transaction Roll Back
         const session = client.startSession();
         try {
@@ -1182,21 +1213,42 @@ async function run() {
           paidStatus: true,
         },
       };
-      update_data(filter, updateDoc, paymentCollection)
-        .then((result) => {
-          if (result.modifiedCount > 0) {
-            return res.redirect(
-              `http://localhost:3000/payment/success/${req.params.tranId}`
-            );
-          }
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        });
+      let session; // Declare session outside try-catch block
+
+      try {
+        session = client.startSession();
+        session.startTransaction();
+
+        const paymentSuccess = await paymentCollection.updateOne(
+          filter,
+          updateDoc,
+          { session }
+        );
+
+        if (paymentSuccess.modifiedCount <= 0) {
+          throw new Error("Failed to update Payment Collection");
+        }
+
+        const clearCard = await addToCardCollection.deleteMany(
+          { status: true },
+          { session }
+        );
+
+        if (clearCard.deletedCount <= 0) {
+          throw new Error("Failed to clear Add To Card Collection");
+        }
+
+        await session.commitTransaction();
+        await session.endSession();
+
+        return res.redirect(`http://localhost:3000/payment/success/${tranId}`);
+      } catch (error) {
+        if (session) {
+          await session.abortTransaction();
+          await session.endSession();
+        }
+        return res.status(500).send("Internal Server Error");
+      }
     });
 
     app.post("/api/v1/payment/fail/:tranId", async (req, res) => {
@@ -1233,8 +1285,8 @@ async function run() {
         await session.commitTransaction();
         await session.endSession();
 
-        return res.send(
-          `http://localhost:3013/api/v1/payment/fail/${req.params.tranId}`
+        return res.redirect(
+          `http://localhost:3000/payment/fail/${req.params.tranId}`
         );
       } catch (error) {
         await session.abortTransaction();
