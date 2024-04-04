@@ -25,6 +25,7 @@ const {
   addToCardCollection,
   client,
   paymentCollection,
+  reviewCollection,
 } = require("./DB/mongoDB");
 const {
   upload,
@@ -1307,6 +1308,64 @@ async function run() {
               success: true,
               message: "Successfully Get My All Order Summary",
               status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // end of transaction era
+
+    // start review system
+
+    app.post(
+      "/api/v1/review_product",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        req.body.subcategorieId = new ObjectId(`${req.body.subcategorieId}`);
+        const reviewData = {
+          ...req.body,
+          email: req.user.email,
+        };
+        post_data(reviewCollection, reviewData)
+          .then((result) => {
+            return res.status(httpStatus.CREATED).send({
+              success: true,
+              message: "Review Recorded Successfully",
+              status: httpStatus.CREATED,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.get(
+      "/api/v1/review_product/:subcategorieId",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const query = {
+          subcategorieId: new ObjectId(req.params.subcategorieId),
+        };
+        get_all_data(reviewCollection, query, (page = 1), (limit = 300))
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Review Recorded Successfully",
+              status: httpStatus.Ok,
               data: result,
             });
           })
