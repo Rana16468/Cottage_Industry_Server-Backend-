@@ -9,6 +9,7 @@ const {
 
   aggregate_data,
   get_all_data,
+  delete_data,
 } = require("./reuseable_method/resuable_functions");
 require("dotenv").config();
 
@@ -155,6 +156,7 @@ async function run() {
             $group: {
               _id: "$categorie_name", // Group documents by categorie_name
               categorieId: { $first: "$_id" },
+              email: { $first: "$email" },
               count: { $sum: 1 }, // Count the number of products in each category
               products: { $push: "$productList" }, // Accumulate product details for each category
             },
@@ -182,6 +184,21 @@ async function run() {
               status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           });
+      }
+    );
+
+    // get Speciidc Categorical Product
+    app.get(
+      "/api/v1/specific_categorical_product",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const result = await productCategorie.find(req.query).toArray();
+        res.status(httpStatus.OK).send({
+          success: true,
+          status: httpStatus.OK,
+          message: "Get Successfully",
+          data: result,
+        });
       }
     );
 
@@ -1358,7 +1375,7 @@ async function run() {
       auth(USER_ROLE.Buyer),
       async (req, res) => {
         const query = {
-          subcategorieId: new ObjectId(req.params.subcategorieId),
+          subcategorieId: new ObjectId(`${req.params.subcategorieId}`),
         };
         get_all_data(reviewCollection, query, (page = 1), (limit = 300))
           .then((result) => {
@@ -1378,6 +1395,63 @@ async function run() {
           });
       }
     );
+
+    // update Review
+
+    app.patch(
+      "/api/v1/edit_review",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const filter = {
+          _id: new ObjectId(`${req.body.id}`),
+        };
+        const updateDoc = {
+          $set: {
+            review: req.body.review,
+          },
+        };
+        update_data(filter, updateDoc, reviewCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Update Successfully",
+              status: httpStatus.Ok,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.delete(
+      "/api/v1/review_delete/:id",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        delete_data(req.params.id, reviewCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Delete Successfull",
+              status: httpStatus.Ok,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+    // completed review
 
     app.use((req, res, next) => {
       return res
