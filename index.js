@@ -400,6 +400,52 @@ async function run() {
       }
     );
 
+    // only seller user display
+
+    app.get(
+      "/api/v1/buyer_specific_subcategore?",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const query = {
+          name: req.query.subDetails,
+        };
+        const { role, email } = req.user;
+        let result;
+        if (role === process.env.buyer_account) {
+          result = await subCategorieCollection.find(query).toArray();
+        } else {
+          const specificUserProduct = await productCategorie
+            .find({ email })
+            .project({ productList: 1 })
+            .toArray();
+          const subCategorieProductId = specificUserProduct
+            ?.map((v) =>
+              v?.productList?.find(
+                (v) => v?.tittle === req.query.subCategorieName
+              )
+            )
+            .reduce((acc, val) => {
+              if (val !== undefined) {
+                acc.push(val);
+              }
+              return acc;
+            }, []);
+
+          const subQuery = {
+            productId: new ObjectId(`${subCategorieProductId[0].id}`),
+          };
+          result = await subCategorieCollection.find(subQuery).toArray();
+        }
+
+        res.status(httpStatus.OK).send({
+          success: true,
+          status: httpStatus.OK,
+          message: "Successfully Get All Subcategorie",
+          data: result,
+        });
+      }
+    );
+
     // image details
     app.post(
       "/api/v1/product_details",
