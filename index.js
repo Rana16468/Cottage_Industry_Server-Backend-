@@ -27,6 +27,7 @@ const {
   client,
   paymentCollection,
   reviewCollection,
+  wishlistCollection,
 } = require("./DB/mongoDB");
 const {
   upload,
@@ -1498,6 +1499,142 @@ async function run() {
       }
     );
     // completed review
+
+    // starting wishList
+    app.post(
+      "/api/v1/my_wish_list",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        // Reflect.deleteProperty(req.body, process.env.TERM);
+        const isExistProduct = await wishlistCollection
+          .findOne({ productId: req.body.productId })
+          .then((data) => data?._id);
+        if (isExistProduct) {
+          return res.status(httpStatus.FOUND).send({
+            success: true,
+            message: "Alredy Exist",
+            status: httpStatus.FOUND,
+          });
+        }
+        post_data(wishlistCollection, { email: req.user.email, ...req.body })
+          .then((result) => {
+            return res.status(httpStatus.CREATED).send({
+              success: true,
+              message: "Wish List is Created",
+              status: httpStatus.CREATED,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.get(
+      "/api/v1/find_my_wish_list",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const query = {};
+        const result = await wishlistCollection.find(query).toArray();
+
+        res.status(httpStatus.OK).send({
+          success: true,
+          message: "Successfuly Get",
+          status: httpStatus.OK,
+          data: result,
+        });
+      }
+    );
+
+    app.delete(
+      "/api/v1/delete_wish_list/:id",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        delete_data(req.params.id, wishlistCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfuly Delete",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+    //start add to card with wishList
+    app.post(
+      "/api/v1/addToCard_from_wishList",
+      auth(USER_ROLE.Buyer),
+      async (req, res) => {
+        const { brandName, name, photo, price, productId, _id } = req.body;
+        const { email } = req.user;
+        const isExist = await addToCardCollection
+          .findOne({ productId })
+          .then((data) => data?._id);
+        if (isExist) {
+          return res.status(httpStatus.FOUND).send({
+            success: true,
+            message: "Already Exist",
+            status: httpStatus.FOUND,
+          });
+        }
+        const subcategorieId = new ObjectId(`${productId}`);
+        const addToCard = {
+          subcategorieId,
+          email,
+          status: false,
+          count: 0,
+          brandName,
+          name,
+          photo,
+          price,
+        };
+        // start transaction roll back
+        const session = client.startSession();
+        try {
+          session.startTransaction();
+
+          const postAddToCard = await addToCardCollection.insertOne(addToCard, {
+            session,
+          });
+          if (!postAddToCard.insertedId) {
+            throw new Error("Failed to Post addToCardCollection");
+          }
+          const deleteWishList = await wishlistCollection.deleteOne(
+            { _id: new ObjectId(`${_id}`) },
+            { session }
+          );
+          if (deleteWishList.deletedCount !== 1) {
+            throw new Error("Failed to delete  delete Wish List");
+          }
+
+          await session.commitTransaction();
+          await session.endSession();
+
+          return res.status(httpStatus.OK).send({
+            success: true,
+            message: "Successfully Deleted",
+            status: httpStatus.OK,
+            data: postAddToCard,
+          });
+        } catch (error) {
+          await session.abortTransaction();
+          await session.endSession();
+        }
+      }
+    );
 
     app.use((req, res, next) => {
       return res
