@@ -10,6 +10,7 @@ const {
   aggregate_data,
   get_all_data,
   delete_data,
+  specific_data,
 } = require("./reuseable_method/resuable_functions");
 require("dotenv").config();
 
@@ -1633,6 +1634,98 @@ async function run() {
           await session.abortTransaction();
           await session.endSession();
         }
+      }
+    );
+
+    // get specific user information
+    app.get(
+      "/api/v1/specific_user_info",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const query = {
+          email: req.user.email,
+        };
+        specific_data(userCollection, query)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfuly Get Specific User",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.patch(
+      "/api/v1/profile_picture",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        const filter = {
+          email: req.user.email,
+        };
+        const updateDoc = {
+          $set: {
+            photo: req.body.image,
+          },
+        };
+        update_data(filter, updateDoc, userCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Image Updated",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    // update Product Images
+    app.patch(
+      "/api/v1/update_productList_images/:id",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const filter = {
+          email: req.user.email,
+          "productList.id": req.params.id,
+        };
+        const updateDoc = {
+          $set: {
+            "productList.$.photo": req.body.photo,
+          },
+        };
+
+        update_data(filter, updateDoc, productCategorie)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Updated",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
       }
     );
 
