@@ -149,26 +149,51 @@ async function run() {
       async (req, res) => {
         const page = Number(req?.query?.page) || 1; // page --->
         const limit = Number(req?.query?.limit) || 25;
-
-        const query = [
-          {
-            $unwind: "$productList", // Deconstruct/breckdown the productList array
-          },
-          {
-            $group: {
-              _id: "$categorie_name", // Group documents by categorie_name
-              categorieId: { $first: "$_id" },
-              email: { $first: "$email" },
-              count: { $sum: 1 }, // Count the number of products in each category
-              products: { $push: "$productList" }, // Accumulate product details for each category
+        const user = req.user;
+        // condition
+        let query;
+        if (user.role === "seller") {
+          query = [
+            {
+              $match: { email: user.email },
             },
-          },
-          {
-            $sort: {
-              count: -1,
+            {
+              $unwind: "$productList", // Deconstruct/breckdown the productList array
             },
-          },
-        ];
+            {
+              $group: {
+                _id: "$_id", // Group documents by categorie_name
+                categorieId: { $first: "$categorie_name" },
+                count: { $sum: 1 }, // Count the number of products in each category
+                products: { $push: "$productList" }, // Accumulate product details for each category
+              },
+            },
+            {
+              $sort: {
+                count: -1,
+              },
+            },
+          ];
+        } else {
+          query = [
+            {
+              $unwind: "$productList", // Deconstruct/breckdown the productList array
+            },
+            {
+              $group: {
+                _id: "$_id", // Group documents by categorie_name
+                categorieId: { $first: "$categorie_name" },
+                count: { $sum: 1 }, // Count the number of products in each category
+                products: { $push: "$productList" }, // Accumulate product details for each category
+              },
+            },
+            {
+              $sort: {
+                count: -1,
+              },
+            },
+          ];
+        }
 
         aggregate_data(query, productCategorie, page, limit)
           .then((result) => {
@@ -1726,6 +1751,64 @@ async function run() {
               status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           });
+      }
+    );
+
+    // delete product as a bulk
+    app.delete(
+      "/api/v1/delete_categorie_list/:id",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { id } = req.params;
+        const query = {
+          productId: new ObjectId(`${id}`),
+        };
+        // start transaction roll back
+
+        const session = client.startSession();
+        try {
+          session.startTransaction();
+
+          //strat subcategories details
+          const subCategorieDetails =
+            await categoriesDetailsCollection.deleteMany(query, { session });
+          if (subCategorieDetails.deletedCount !== 1) {
+            throw new Error("Failed to delete  Sub Categories Details");
+          }
+          // start subcategories
+          const subcategories = await subCategorieCollection.deleteMany(query, {
+            session,
+          });
+          if (subcategories.deletedCount !== 1) {
+            throw new Error("Failed to delete  Sub Categorie Details");
+          }
+
+          const deletecategorie = await productCategorie.updateOne(
+            { "productList.id": id },
+            {
+              $pull: {
+                productList: { id: id },
+              },
+            },
+            { upsert: true, session }
+          );
+          if (deletecategorie.modifiedCount < 1) {
+            throw new Error("Failed to product categories session");
+          }
+
+          await session.commitTransaction();
+          await session.endSession();
+
+          return res.status(httpStatus.OK).send({
+            success: true,
+            message: "Successfully Deleted",
+            status: httpStatus.OK,
+            data: deletecategorie,
+          });
+        } catch (error) {
+          await session.abortTransaction();
+          await session.endSession();
+        }
       }
     );
 
