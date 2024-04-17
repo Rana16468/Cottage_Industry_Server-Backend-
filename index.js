@@ -150,9 +150,16 @@ async function run() {
         const page = Number(req?.query?.page) || 1; // page --->
         const limit = Number(req?.query?.limit) || 25;
         const user = req.user;
+        // if is it Admin or not
+        const projection = { isAdmin: 1, _id: 0 };
+        const isAdmin = await userCollection.findOne(
+          { email: user?.email },
+          { projection }
+        );
+
         // condition
         let query;
-        if (user.role === "seller") {
+        if (user.role === "seller" && !isAdmin?.isAdmin) {
           query = [
             {
               $match: { email: user.email },
@@ -237,12 +244,22 @@ async function run() {
       async (req, res) => {
         const page = Number(req?.query?.page) || 1;
         const limit = Number(req?.query?.limit) || 25;
-        const query = [
-          // state1
-          {
-            $match: { email: req.user.email },
-          },
-        ];
+
+        const { email } = req.user;
+
+        const projection = { isAdmin: 1, _id: 0 };
+        const isAdmin = await userCollection.findOne({ email }, { projection });
+
+        let query;
+        if (isAdmin.isAdmin) {
+          query = [];
+        } else {
+          query = [
+            {
+              $match: { email },
+            },
+          ];
+        }
 
         aggregate_data(query, productCategorie, page, limit)
           .then((result) => {
@@ -1067,12 +1084,17 @@ async function run() {
 
     app.get(
       "/api/v1/my_addToCard_product",
-      auth(USER_ROLE.Buyer),
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
       async (req, res) => {
-        const query = {
-          email: req.user.email,
-        };
-
+        const user = req.user;
+        let query;
+        if (user.role === process.env.buyer_account) {
+          query = {
+            email: user.email,
+          };
+        } else {
+          query = {};
+        }
         get_all_data(addToCardCollection, query, (page = 1), (limit = 50))
           .then((result) => {
             return res.status(httpStatus.OK).send({
@@ -1257,6 +1279,7 @@ async function run() {
         transactionID: tran_id,
       };
 
+      finalOrder.date = new Date(productData.data);
       // transaction Rollback
       const session = client.startSession();
       try {
@@ -1388,11 +1411,21 @@ async function run() {
 
     app.get(
       "/api/v1/my_all_order_summary",
-      auth(USER_ROLE.Buyer),
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
       async (req, res) => {
         const { email } = req.user;
-        const query = { email };
-        get_all_data(paymentCollection, query, (page = 1), (limit = 100))
+        const projection = { isAdmin: 1, _id: 0 };
+        const isAdmin = await userCollection.findOne({ email }, { projection });
+
+        // condition
+        let query;
+        if (isAdmin?.isAdmin) {
+          query = {};
+        } else {
+          query = { email };
+        }
+
+        get_all_data(paymentCollection, query, (page = 1), (limit = 100000))
           .then((result) => {
             return res.status(httpStatus.OK).send({
               success: true,
@@ -1504,7 +1537,7 @@ async function run() {
 
     app.delete(
       "/api/v1/review_delete/:id",
-      auth(USER_ROLE.Buyer),
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
       async (req, res) => {
         delete_data(req.params.id, reviewCollection)
           .then((result) => {
@@ -1563,9 +1596,18 @@ async function run() {
 
     app.get(
       "/api/v1/find_my_wish_list",
-      auth(USER_ROLE.Buyer),
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
       async (req, res) => {
-        const query = {};
+        const user = req.user;
+        let query;
+        if (user.role === process.env.buyer_account) {
+          query = {
+            email: user?.email,
+          };
+        } else {
+          query = {};
+        }
+
         const result = await wishlistCollection.find(query).toArray();
 
         res.status(httpStatus.OK).send({
@@ -1809,6 +1851,158 @@ async function run() {
           await session.abortTransaction();
           await session.endSession();
         }
+      }
+    );
+
+    // admin dashboard working execute
+
+    app.get(
+      "/api/v1/admin/all_user",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const result = await userCollection.find({}).toArray();
+
+        res.status(httpStatus.OK).send({
+          success: true,
+          message: "Successfully Get All User",
+          status: httpStatus.OK,
+          data: result,
+        });
+      }
+    );
+
+    app.patch(
+      "/api/v1/admin/admin_toggle/",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const filter = {
+          _id: new ObjectId(`${req.query.id}`),
+        };
+        const isAdminExist = await userCollection
+          .findOne(filter)
+          .then((data) => data._id);
+        if (!isAdminExist) {
+          return res.status(httpStatus.NOT_FOUND).send({
+            success: true,
+            message: "Unauthorized User",
+            status: httpStatus.NOT_FOUND,
+          });
+        }
+        const updateDoc = {
+          $set: {
+            isAdmin: req.body.isAdmin,
+            date: new Date().toString(),
+            creator: req.user.email,
+          },
+        };
+        update_data(filter, updateDoc, userCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "User Role Successfully Updated",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.get(
+      "/api/v1/admin/all_reviwes",
+      auth(USER_ROLE.Seller),
+
+      async (req, res) => {
+        const query = [
+          {
+            $lookup: {
+              from: "review", // Name of the subCategorieCollection
+              localField: "_id", // Field in reviewCollection that references subCategorieCollection
+              foreignField: "subcategorieId", // Field in subCategorieCollection that matches localField
+              as: "productInfo", // Name to store the joined data
+            },
+          },
+        ];
+
+        const result = await subCategorieCollection.aggregate(query).toArray();
+        res.status(httpStatus.OK).send({
+          success: true,
+          message: "Successfully Get All Reviwes",
+          status: httpStatus.OK,
+          data: result,
+        });
+      }
+    );
+
+    app.get(
+      "/api/v1/admin/payment_schedule_information",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        // Calculate date range based on interval
+
+        switch (req.query.interval) {
+          case "daily":
+            query = {
+              $gte: new Date(new Date().getTime() - 24 * 60 * 60 * 1000),
+            };
+            break;
+          case "weekly":
+            query = {
+              $gte: new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000),
+            };
+
+            break;
+          case "monthly":
+            const date = new Date();
+            const firstDayOfMonth = new Date(
+              date.getFullYear(),
+              date.getMonth(),
+              1
+            );
+            const lastDayOfMonth = new Date(
+              date.getFullYear(),
+              date.getMonth() + 1,
+              0
+            );
+            query = {
+              $gte: firstDayOfMonth, // Sales on or after the first day of the current month
+              $lte: lastDayOfMonth,
+            };
+            break;
+          case "yearly":
+            query = {
+              $gte: new Date(
+                new Date().setFullYear(new Date().getFullYear() - 1)
+              ),
+            };
+            break;
+          default:
+            throw new Error("Invalid interval");
+        }
+
+        // Query MongoDB for payments within the specified date range
+        const result = await paymentCollection
+          .aggregate([
+            {
+              $match: {
+                date: query,
+                paidStatus: true,
+              },
+            },
+          ])
+          .toArray();
+        res.status(httpStatus.OK).send({
+          success: true,
+          message: "Successfully Get Data",
+          status: httpStatus.OK,
+          data: result,
+        });
       }
     );
 
