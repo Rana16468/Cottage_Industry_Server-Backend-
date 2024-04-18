@@ -2006,6 +2006,15 @@ async function run() {
       }
     );
 
+    app.get("/api/v1/isAdmin", auth(USER_ROLE.Seller), async (req, res) => {
+      const projection = { isAdmin: 1, _id: 0 };
+      const isAdmin = await userCollection.findOne(
+        { email: req.user.email },
+        { projection }
+      );
+      res.status(httpStatus.OK).send(isAdmin);
+    });
+
     app.use((req, res, next) => {
       return res
         .status(httpStatus.NOT_FOUND)
