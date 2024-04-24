@@ -29,6 +29,7 @@ const {
   paymentCollection,
   reviewCollection,
   wishlistCollection,
+  reportCollection,
 } = require("./DB/mongoDB");
 const {
   upload,
@@ -2014,6 +2015,87 @@ async function run() {
       );
       res.status(httpStatus.OK).send(isAdmin);
     });
+
+    // start report collection
+
+    app.post(
+      "/api/v1/report",
+      auth(USER_ROLE.Buyer, USER_ROLE.Seller),
+      async (req, res) => {
+        // checked validation
+        let report;
+        const { email, role } = req.user;
+
+        if (
+          role === process.env.buyer_account &&
+          req.body.transactionID &&
+          req.body.productId
+        ) {
+          const query = { _id: new ObjectId(`${req.body.productId}`) };
+
+          const isExistProduct = await subCategorieCollection
+            .findOne(query)
+            .then((data) => data?._id);
+
+          if (!isExistProduct) {
+            return res.status(httpStatus.NOT_FOUND).send({
+              success: true,
+              message: "This Product Id is Not Exist",
+              status: httpStatus.NOT_FOUND,
+            });
+          }
+
+          const isExistTransactionId = await paymentCollection
+            .findOne({ transactionID: Number(req.body.transactionID) })
+            .then((data) => data?._id);
+          if (!isExistTransactionId) {
+            return res.status(httpStatus.NOT_FOUND).send({
+              success: true,
+              message: "This Transaction  Id is Not Exist",
+              status: httpStatus.NOT_FOUND,
+            });
+          }
+          report = req.body;
+        } else if (role === process.env.seler_account && req.body.buyerEmail) {
+          const isExistUser = await userCollection
+            .findOne({ email })
+            .then((data) => data._id);
+          if (!isExistUser) {
+            return res.status(httpStatus.NOT_FOUND).send({
+              success: true,
+              message: "This User Not Exist in the Database",
+              status: httpStatus.NOT_FOUND,
+            });
+          }
+          report = req.body;
+        } else {
+          if (
+            req.body.problem &&
+            (role === process.env.seler_account ||
+              role === process.env.buyer_account)
+          ) {
+            report = req.body;
+          }
+        }
+
+        post_data(reportCollection, report)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Recorded",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
 
     app.use((req, res, next) => {
       return res

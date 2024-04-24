@@ -21,6 +21,7 @@ const addToCardCollection = db.collection("addtocard");
 const paymentCollection = db.collection("payment");
 const reviewCollection = db.collection("review");
 const wishlistCollection = db.collection("wishlist");
+const reportCollection = db.collection("report");
 
 module.exports = {
   productCategorie,
@@ -34,4 +35,5 @@ module.exports = {
   paymentCollection,
   reviewCollection,
   wishlistCollection,
+  reportCollection,
 };
