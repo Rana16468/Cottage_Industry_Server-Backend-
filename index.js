@@ -117,32 +117,38 @@ async function run() {
         });
     });
 
-    app.put("/api/v1/productList/:id", async (req, res) => {
-      const { id } = req.params;
+    app.put(
+      "/api/v1/productList/:id",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const { id } = req.params;
 
-      const data = req.body;
+        const data = req.body;
 
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $addToSet: { productList: { id: new ObjectId().toString(), ...data } },
-      };
-      update_data(filter, updateDoc, productCategorie)
-        .then((result) => {
-          return res.send({
-            success: true,
-            message: "Successfully  added poduct List",
-            status: httpStatus.CREATED,
-            data: result,
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $addToSet: {
+            productList: { id: new ObjectId().toString(), ...data },
+          },
+        };
+        update_data(filter, updateDoc, productCategorie)
+          .then((result) => {
+            return res.send({
+              success: true,
+              message: "Successfully  added poduct List",
+              status: httpStatus.CREATED,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
           });
-        })
-        .catch((error) => {
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        });
-    });
+      }
+    );
 
     app.get(
       "/api/v1/all_product",
@@ -287,21 +293,36 @@ async function run() {
       auth(USER_ROLE.Seller),
       async (req, res) => {
         const { id } = req.query;
-        console.log(id); // multiple collection delete at a time
-        /* delete_data(id,productCategorie).then((result)=>{
-          return res.status(httpStatus.OK).send({
+        const query = {
+          categorieId: new ObjectId(`${id}`),
+        };
+        const isExistSubCategorie = await subCategorieCollection
+          .findOne(query)
+          .then((data) => data?._id);
+
+        if (isExistSubCategorie) {
+          return res.status(httpStatus.FOUND).send({
             success: true,
-            status: httpStatus.OK,
-            message: " Categorie Delete Successfull",
-           
+            status: httpStatus.FOUND,
+            message: "You Can't Deleted",
           });
-        }).catch((error)=>{
-          return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-            success: false,
-            message: error?.message,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+        }
+        delete_data(id, productCategorie)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              status: httpStatus.OK,
+              message: "Successfully Deleted",
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
           });
-        })*/
       }
     );
 
@@ -448,12 +469,13 @@ async function run() {
     // only seller user display
 
     app.get(
-      "/api/v1/buyer_specific_subcategore?",
+      "/api/v1/buyer_specific_subcategore",
       auth(USER_ROLE.Buyer, USER_ROLE.Seller),
       async (req, res) => {
         const query = {
           name: req.query.subDetails,
         };
+
         const { role, email } = req.user;
         let result;
         if (role === process.env.buyer_account) {
@@ -747,7 +769,7 @@ async function run() {
           },
         ];
 
-        aggregate_data(query, chatbotCollection, (page = 1), (limit = 25))
+        aggregate_data(query, chatbotCollection, (page = 1), (limit = 500))
           .then((result) => {
             return res.send({
               success: true,
@@ -2096,6 +2118,75 @@ async function run() {
           });
       }
     );
+
+    app.get("/api/v1/user_report", auth(USER_ROLE.Seller), async (req, res) => {
+      const result = await reportCollection.find({}).toArray();
+      res.status(httpStatus.OK).send({
+        success: true,
+        message: "Successfully Get All Report",
+        status: httpStatus.OK,
+        data: result,
+      });
+    });
+    app.delete(
+      "/api/v1/delete_report/:id",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        delete_data(req.params.id, reportCollection)
+          .then((result) => {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              message: "Successfully Deleted",
+              status: httpStatus.OK,
+              data: result,
+            });
+          })
+          .catch((error) => {
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
+              success: false,
+              message: error?.message,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          });
+      }
+    );
+
+    app.get("/api/v1/deshboard", auth(USER_ROLE.Seller), async (req, res) => {
+      const totalUserCount = await userCollection.estimatedDocumentCount();
+      const totalProductCount = await productCategorie.estimatedDocumentCount();
+      const totalSubCategorieCount =
+        await subCategorieCollection.estimatedDocumentCount();
+      const totalProductDetailsCount =
+        await categoriesDetailsCollection.estimatedDocumentCount();
+      const totalChatCount = await chatbotCollection.estimatedDocumentCount();
+      const totalAddToCardCount =
+        await addToCardCollection.estimatedDocumentCount();
+      const totalPaymentCount =
+        await paymentCollection.estimatedDocumentCount();
+      const totalReviewCount = await reviewCollection.estimatedDocumentCount();
+      const totalWishListCount =
+        await wishlistCollection.estimatedDocumentCount();
+      const totalReportCount = await reportCollection.estimatedDocumentCount();
+      res.status(httpStatus.OK).send({
+        success: true,
+        message: "Successfully Get ALL Collection Data",
+        status: httpStatus.OK,
+        data: {
+          totalUserCount,
+          totalProductCount,
+          totalSubCategorieCount,
+          totalProductDetailsCount,
+          totalChatCount,
+          totalAddToCardCount,
+          totalPaymentCount,
+          totalReviewCount,
+          totalWishListCount,
+          totalReportCount,
+        },
+      });
+    });
+
+    // now time to added AI
 
     app.use((req, res, next) => {
       return res
