@@ -3,6 +3,7 @@ const cors = require("cors");
 const { ObjectId } = require("mongodb");
 const bcrypt = require("bcrypt");
 const SSLCommerzPayment = require("sslcommerz-lts");
+const Replicate = require("replicate");
 const {
   post_data,
   update_data,
@@ -1327,17 +1328,17 @@ async function run() {
         await session.commitTransaction();
         await session.endSession();
 
-        return " ";
+        sslcz.init(data).then((apiResponse) => {
+          // Redirect the user to payment gateway
+          let GatewayPageURL = apiResponse.GatewayPageURL;
+
+          res.send({ url: GatewayPageURL });
+          //  console.log('Redirecting to: ', GatewayPageURL)
+        });
       } catch (error) {
         await session.abortTransaction();
         await session.endSession();
       }
-      sslcz.init(data).then((apiResponse) => {
-        // Redirect the user to payment gateway
-        let GatewayPageURL = apiResponse.GatewayPageURL;
-        res.send({ url: GatewayPageURL });
-        //  console.log('Redirecting to: ', GatewayPageURL)
-      });
     });
 
     app.post("/api/v1/payment/success/:tranId", async (req, res) => {
@@ -2187,6 +2188,47 @@ async function run() {
     });
 
     // now time to added AI
+    app.post(
+      "/api/v1/AI_image_generate",
+      auth(USER_ROLE.Seller),
+      async (req, res) => {
+        const data = req.body;
+
+        const replicate = new Replicate({
+          auth: process.env.REPLICATE_API_TOKEN,
+        });
+        const output = await replicate.run(
+          "stability-ai/stable-diffusion:ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4",
+          {
+            input: {
+              prompt: data?.image,
+            },
+          }
+        );
+        res.status(httpStatus.OK).send({
+          success: true,
+          status: httpStatus.OK,
+          message: "Successfully  Generate The Image",
+          result: output[0],
+        });
+      }
+    );
+
+    // delete Account
+    app.delete(
+      "/api/v1/deleteAccount",
+      auth(USER_ROLE.Seller, USER_ROLE.Buyer),
+      async (req, res) => {
+        const filter = { email: req.user.email };
+        const result = await userCollection.deleteOne(filter);
+        res.status(httpStatus.OK).send({
+          success: true,
+          message: "Successfully Deleted",
+          status: httpStatus.OK,
+          data: result,
+        });
+      }
+    );
 
     app.use((req, res, next) => {
       return res
