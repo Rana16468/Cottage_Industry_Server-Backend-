@@ -364,6 +364,17 @@ async function run() {
       "/api/v1/user_information",
 
       async (req, res) => {
+        // checked user alredy exist or not
+        const isExistUser = await userCollection
+          .findOne({ email: req.body.email })
+          .then((data) => data?._id);
+        if (isExistUser) {
+          return res.status(httpStatus.CREATED).send({
+            success: true,
+            status: httpStatus.CREATED,
+            message: "User Information Alredy exist",
+          });
+        }
         Reflect.deleteProperty(req.body, process.env.TERM);
         Reflect.deleteProperty(req.body, process.env.CONFIRM_PASSWORD);
         req.body.password = await bcrypt.hash(
@@ -498,10 +509,21 @@ async function run() {
               }
               return acc;
             }, []);
+          if (
+            Array.isArray(subCategorieProductId) &&
+            subCategorieProductId.length === 0
+          ) {
+            return res.status(httpStatus.OK).send({
+              success: true,
+              status: httpStatus.OK,
+              message: " Subcategorie Data Not Exist ",
+            });
+          }
 
           const subQuery = {
             productId: new ObjectId(`${subCategorieProductId[0].id}`),
           };
+
           result = await subCategorieCollection.find(subQuery).toArray();
         }
 
