@@ -1325,7 +1325,7 @@ async function run() {
         transactionID: tran_id,
       };
 
-      finalOrder.date = new Date(productData.data);
+      finalOrder.date = new Date(productData.date);
       // transaction Rollback
       const session = client.startSession();
       try {
@@ -2043,6 +2043,7 @@ async function run() {
             },
           ])
           .toArray();
+
         res.status(httpStatus.OK).send({
           success: true,
           message: "Successfully Get Data",
