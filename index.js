@@ -2028,8 +2028,13 @@ async function run() {
               ),
             };
             break;
-          default:
-            throw new Error("Invalid interval");
+          default: {
+            query = {
+              $gte: new Date(
+                new Date().setFullYear(new Date().getFullYear() - 1)
+              ),
+            };
+          }
         }
 
         // Query MongoDB for payments within the specified date range
