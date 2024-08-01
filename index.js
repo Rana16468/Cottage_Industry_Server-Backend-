@@ -4,6 +4,7 @@ const { ObjectId } = require("mongodb");
 const bcrypt = require("bcrypt");
 const SSLCommerzPayment = require("sslcommerz-lts");
 const Replicate = require("replicate");
+const corn = require("node-cron");
 const {
   post_data,
   update_data,
@@ -37,6 +38,10 @@ const {
   sendImageToCloudinary,
 } = require("./reuseable_method/ImageGenarator");
 const { paymentGetWay } = require("./reuseable_method/paymentGetWay");
+const {
+  CheckedPaymentSuccess,
+} = require("./reuseable_method/CheckedPaymentSuccess");
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -60,6 +65,11 @@ connectedDatabase().catch((error) =>
 
 async function run() {
   // Test route
+
+  corn.schedule("* * * * *", () => {
+    CheckedPaymentSuccess().catch((error) => console.log(error?.message));
+  });
+
   app.get("/", (req, res) => {
     const serverStatus = {
       message: "Server is running smoothly",
